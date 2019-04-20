@@ -1,0 +1,308 @@
+<?php
+
+/**
+ * Implements hook_help().
+ */
+function class_signup_help($path, $arg) {
+  switch ($path) {
+  case "admin/help#class_signup":
+    return '<p>' . t("Retrieves user input and displays class schedule information.");
+    break;
+  }
+}
+
+/**
+ * Implements hook_permission().
+ */
+function class_signup_permission() {
+  return array(
+    'access signup' => array(
+      'title' => t('Access content for the Class Signup module'),
+    )
+  );
+}
+
+/**
+ * Implements hook_menu().
+ */
+function class_signup_menu() {
+  $items = array();
+  $items['signup'] = array(
+           'title' => 'Class Signup',
+           'page callback' => 'class_signup_show_form',
+           'access arguments' => array('access signup'),
+           'type' => MENU_NORMAL_ITEM,
+         );
+   return $items;
+}
+
+/**
+ * Passes the call to display the form.
+ */
+function class_signup_show_form () {
+  $form_var = drupal_get_form('class_signup_identify_form');
+  return $form_var;
+}
+  
+/**
+ * Implements hook_form(). It displays the results right below the initial form.
+ */
+function class_signup_identify_form($form = array(), &$form_state) {
+
+  drupal_add_library('system', 'drupal.ajax');
+
+  $initial_title = '<div>Please fill out information for your class</div>';
+  $form = array();
+  $form['#attached']['css'][] = drupal_get_path('module', 'class_signup') . '/css/styles.css';
+  $form['#attached']['js'][] = drupal_get_path('module', 'class_signup') . '/js/class_signup.js';
+ 
+  $form['initial_title'] = array(
+             '#title' => $initial_title,
+             '#type' => 'fieldset',
+  );
+  $form['username'] = array(
+       '#type' => 'textfield',
+       '#title' => t('Username'),
+       '#required' => TRUE,
+       '#description' => t('Alphanumeric characters only allowed'),
+   );
+  $form['email'] = array(
+       '#type' => 'textfield',
+       '#title' => t('Email address'),
+       '#required' => TRUE,
+       '#description' => t('Must be a valid email address'),
+   );
+
+  //Retrieve subjects from database
+  $subject_options = _get_subjects();
+
+  $subject_selected = isset($form_state['values']['subject']) ? $form_state['values']['subject'] : key($subject_options);
+
+  $form['subject'] = array(
+       '#type' => 'select',
+       '#title' => t('Class subject'),
+       '#required' => TRUE,
+       '#options' => $subject_options,
+       '#default_value' => $subject_selected,
+       '#ajax' => array(
+         'wrapper' => 'topic-dependent',
+         'callback' => 'class_signup_topic_ajax_callback',
+        ),
+       '#attributes' => array('class' => array('enabled-for-ajax')),
+   );
+
+  $topic_options = _get_topics($subject_selected);
+  $topic_selected = isset($form_state['values']['topic']) ? $form_state['values']['topic'] : 10;
+
+  $form['topic'] = array(
+       '#type' => 'select',
+       '#title' => t('Class topic'),
+       '#required' => TRUE,
+       '#options' => $topic_options,
+       '#default_value' => $topic_selected,
+       '#prefix' => '<div id="topic-dependent">',
+       '#suffix' => '</div>',
+       '#ajax' => array(
+         'wrapper' => 'time-dependent',
+         'callback' => 'class_signup_time_ajax_callback',
+        ),
+       '#attributes' => array('class' => array('enabled-for-ajax')),
+   );
+
+  $time_selected = isset($form_state['values']['timeslot']) ? $form_state['values']['timeslot'] : '8:00 AM';
+  $time_options = _get_times($topic_selected);
+  watchdog('selected time', '<pre>' . print_r($time_selected, true) . '</pre>');
+  watchdog('selected topic before rendering time', '<pre>' . print_r($topic_selected, true) . '</pre>');
+
+  $form['timeslot'] = array(
+       '#type' => 'select',
+       '#title' => t('Class timeslot'),
+       '#required' => TRUE,
+       '#prefix' => '<div id="time-dependent">',
+       '#suffix' => '</div>',
+       '#default_value' => $time_selected,
+       '#options' => $time_options,
+       '#attributes' => array('class' => array('enabled-for-ajax')),
+   );
+  $form['button_fieldset']['enter'] = array(
+    '#type' => 'submit',
+    '#value' => t('Add Class'),
+    '#submit' => array('class_signup_identify_form_submit'),
+    '#attributes' => array('class' => array('enabled-for-ajax')),
+  );
+
+ // If the user has clicked submit
+  if(!empty($form_state['storage']['new_student'])) {
+     
+    $student_list = $form_state['storage']['new_student'];
+    $result_title = '<p><div>Here is the information submitted:</div></p>';
+    $form['results_rendered_title'] = array(
+      '#title' => $result_title,
+      '#type' => 'fieldset',
+    );
+
+    $output_var = '<p class="student-row">Username: ' . $student_list['username'];
+    $output_var .= ', Email: ' . $student_list['email'];
+    $output_var .= ', Student ID: ' . $student_list['id'] . '</p>';
+    
+    $table_output = class_signup_print_table($student_list, $time_options);
+
+    $form['student_rendered'] = array(
+      '#markup' => $output_var,
+    );
+    $form['results_rendered'] = array(
+      '#markup' => $table_output,
+    ); 
+  }
+
+  return $form;
+}
+
+/**
+ * Callback for class_signup_topic_callback.
+ */
+function class_signup_topic_ajax_callback($form, $form_state) {
+  return $form['topic'];
+}
+
+/**
+ * Callback for class_signup_time_callback.
+ */
+function class_signup_time_ajax_callback($form, $form_state) {
+  return $form['timeslot'];
+}
+
+/**
+ * Implements hook_form_validate().
+ */
+function class_signup_identify_form_validate($form, &$form_state) {
+  //Check for valid email address
+  if (!valid_email_address($form_state['values']['email'])) {
+    drupal_set_message('A valid email address is required', 'error', $repeat = FALSE);
+    return FALSE;
+  }
+  //Check for only alphanumeric characters in username
+  if (!ctype_alnum($form_state['values']['username'])) {
+    drupal_set_message('Only alphanumeric characters are allowed for the username (A-Z, a-z, or 0-9)', 'error', $repeat = FALSE);
+    return FALSE;
+  }
+  return TRUE;
+}
+
+/**
+ * Implements hook_form_submit().
+ */
+function class_signup_identify_form_submit($form, &$form_state) {
+
+  $form_state['rebuild'] = TRUE;
+  //Store values in $form_state
+  $email = $form_state['values']['email'];
+  $username = $form_state['values']['username'];
+  $timeslot = $form_state['values']['timeslot'];
+
+  //Add the new student
+  $student_id = db_insert('student')
+        ->fields(array(
+            'username' => $username,
+            'email' => $email,
+        ))
+        ->execute();
+
+  $display_array = array();
+  $display_array = array(
+      'id' => $student_id,
+      'username' => $username,
+      'email' => $email,
+      'time' => $timeslot,
+      'subject' => $form_state['values']['subject'],
+      'topic' => $form_state['values']['topic'],
+  ); 
+
+  $form_state['storage']['new_student'] = $display_array;
+  return;  
+} 
+
+/**
+ * Render the table that will then be put into the form for display.
+ */
+function class_signup_print_table($student_list, $time_options) {
+  $header = array('Subject', 'Topic', 'Time');
+  $rows = array();
+  $all_subjects = _get_all_subjects();
+  $subject_id = $student_list['subject'];
+  $all_topics = _get_all_topics();
+  $topic_id = $student_list['topic'];
+  $time_selected = $time_options[$student_list['time']];
+  $time_in_12_hour_format = date("g:i a", strtotime($time_selected . ":00"));
+
+  $rows[] = array($all_subjects[$subject_id], $all_topics[$topic_id], $time_in_12_hour_format);
+
+  $output = theme('table', array('header' => $header, 'rows' => $rows ));
+
+  return $output;
+}
+
+function _get_subjects() {
+  $query = "SELECT DISTINCT n.subject_id, n.subject_name
+     from {subject_hierarchy} as n
+    where n.subject_id>0";
+  $result = db_query($query);
+  $options = array();
+  foreach ($result as $row) {
+    $options[$row->subject_id] = $row->subject_name;
+  }
+
+  return $options;
+}
+
+function _get_topics($subject_id = 1) {
+  $query = "SELECT DISTINCT n.topic_id, n.topic_name
+     from {subject_hierarchy} as n
+    where n.subject_id IN (:subject_id)";
+  $result = db_query($query, array(':subject_id' => $subject_id));
+  $options = array();
+  foreach ($result as $row) {
+    $options[$row->topic_id] = $row->topic_name;
+  }
+
+  return $options;
+}
+
+function _get_times($topic_id = 1) {
+  $query = "SELECT n.topic_id, n.topic_time
+     from {schedule} as n
+    where n.topic_id IN (:topic_id)";
+  $result = db_query($query, array(':topic_id' => $topic_id));
+  $options = array();
+  foreach ($result as $row) {
+    $options[] = $row->topic_time;
+  }
+
+  return $options;
+}
+
+function _get_all_subjects() {
+  $query = "SELECT DISTINCT n.subject_id, n.subject_name
+     from {subject_hierarchy} as n
+    where n.subject_id>0";
+  $result = db_query($query);
+  $subject_list = array();
+  foreach ($result as $row) {
+    $subject_list[$row->subject_id] = $row->subject_name;
+  }
+
+  return $subject_list;
+}
+
+function _get_all_topics() {
+  $query = "SELECT DISTINCT n.topic_id, n.topic_name
+     from {subject_hierarchy} as n
+    where n.topic_id>0";
+  $result = db_query($query);
+  $topic_list = array();
+  foreach ($result as $row) {
+    $topic_list[$row->topic_id] = $row->topic_name;
+  }
+
+  return $topic_list;
+}

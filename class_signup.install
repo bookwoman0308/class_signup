@@ -1,0 +1,311 @@
+<?php
+
+/**
+* Implements hook_schema().
+*/
+function class_signup_schema() {
+
+$schema = array();
+
+$schema['student'] = array(
+    'description' => 'The base table for student',
+    'fields' => array(
+        'student_id' => array(
+            'description' => 'Primary key student id',
+            'type' => 'serial',
+            'unsigned' => TRUE,
+            'not null' => TRUE,
+        ),
+        'username' => array(
+            'description' => 'Alphanumeric student username',
+            'type' => 'varchar',
+            'length' => 255,
+            'not null' => TRUE,
+            'default' => '',
+        ),
+        'email' => array(
+            'description' => 'Student email address',
+            'type' => 'varchar',
+            'length' => 255,
+            'not null' => TRUE,
+            'default' => '',
+        ),
+    ),
+    'primary key' => array('student_id'),
+  );
+  $schema['subject_hierarchy'] = array(
+    'description' => 'The table that contains the subjects and topics',
+    'fields' => array(
+        'subject_id' => array(
+            'description' => 'Subject id',
+            'type' => 'int',
+            'not null' => TRUE,
+        ),
+        'subject_name' => array(
+            'description' => 'Class subject',
+            'type' => 'varchar',
+            'length' => 255,
+            'not null' => TRUE,
+        ),
+        'topic_id' => array(
+            'description' => 'Topic id',
+            'type' => 'int',
+            'not null' => TRUE,
+        ),
+        'topic_name' => array(
+            'description' => 'Class topic. Child of class subject',
+            'type' => 'varchar',
+            'length' => 255,
+            'not null' => TRUE,
+        ),
+    ),
+  );
+  $schema['schedule'] = array(
+    'description' => 'Class topic schedule times',
+    'fields' => array(
+        'class_id' => array(
+            'description' => 'Class id for the class taught at a specific time',
+            'type' => 'serial',
+            'not null' => TRUE,
+        ),
+        'topic_id' => array(
+            'description' => 'Topic id. Gets definitions from subject_hierarchy table',
+            'type' => 'int',
+            'not null' => TRUE,
+        ),
+        'topic_time' => array(
+            'description' => 'Time of day for class topic',
+            'type' => 'float',
+            'not null' => TRUE,
+        ),
+    ),
+    'primary key' => array('class_id'),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install()
+ *
+ * Populate values for the schedule and subject_hierarchy tables.
+ **/
+function class_signup_install() {
+
+  // Add values for the subject_hierarchy table
+  $subject_hierarchy_values = array(
+    array(
+      'subject_id' => 1,
+      'subject_name' => 'Math',
+      'topic_id' => 1,
+      'topic_name' => 'Algebra',
+    ),
+    array(
+      'subject_id' => 1,
+      'subject_name' => 'Math',
+      'topic_id' => 2,
+      'topic_name' => 'Trigonometry',
+    ),
+    array(
+      'subject_id' => 1,
+      'subject_name' => 'Math',
+      'topic_id' => 3,
+      'topic_name' => 'Calculus',
+    ),
+    array(
+      'subject_id' => 2,
+      'subject_name' => 'Science',
+      'topic_id' => 4,
+      'topic_name' => 'Physics',
+    ),
+    array(
+      'subject_id' => 2,
+      'subject_name' => 'Science',
+      'topic_id' => 5,
+      'topic_name' => 'Chemistry',
+    ),
+    array(
+      'subject_id' => 2,
+      'subject_name' => 'Science',
+      'topic_id' => 6,
+      'topic_name' => 'Biology',
+    ),
+    array(
+      'subject_id' => 3,
+      'subject_name' => 'Art',
+      'topic_id' => 7,
+      'topic_name' => 'Art History',
+    ),
+    array(
+      'subject_id' => 3,
+      'subject_name' => 'Art',
+      'topic_id' => 8,
+      'topic_name' => 'Painting',
+    ),
+    array(
+      'subject_id' => 3,
+      'subject_name' => 'Art',
+      'topic_id' => 9,
+      'topic_name' => 'Drawing',
+    ),
+    array(
+      'subject_id' => 4,
+      'subject_name' => 'Language Arts',
+      'topic_id' => 10,
+      'topic_name' => 'Literature',
+    ),
+    array(
+      'subject_id' => 4,
+      'subject_name' => 'Language Arts',
+      'topic_id' => 11,
+      'topic_name' => 'Grammar',
+    ),
+    array(
+      'subject_id' => 4,
+      'subject_name' => 'Language Arts',
+      'topic_id' => 12,
+      'topic_name' => 'Writing',
+    ),
+  );
+
+  $query_add = db_insert('subject_hierarchy')->fields(array('subject_id', 'subject_name', 'topic_id', 'topic_name'));
+  foreach ($subject_hierarchy_values as $item) {
+    $query_add->values($item);
+  }
+  $query_add->execute();
+
+  // Add values for the schedule table
+  $schedule_values = array(
+    array(
+      'class_id' => 1,
+      'topic_id' => 1,
+      'topic_time' => '8',
+    ),
+    array(
+      'class_id' => 2,
+      'topic_id' => 1,
+      'topic_time' => '11',
+    ),
+    array(
+      'class_id' => 3,
+      'topic_id' => 2,
+      'topic_time' => '9',
+    ),
+    array(
+      'class_id' => 4,
+      'topic_id' => 2,
+      'topic_time' => '12',
+    ),
+    array(
+      'class_id' => 5,
+      'topic_id' => 3,
+      'topic_time' => '10',
+    ),
+    array(
+      'class_id' => 6,
+      'topic_id' => 3,
+      'topic_time' => '15',
+    ),
+    array(
+      'class_id' => 7,
+      'topic_id' => 4,
+      'topic_time' => '10',
+    ),
+    array(
+      'class_id' => 8,
+      'topic_id' => 4,
+      'topic_time' => '15',
+    ),
+    array(
+      'class_id' => 9,
+      'topic_id' => 5,
+      'topic_time' => '9',
+    ),
+    array(
+      'class_id' => 10,
+      'topic_id' => 5,
+      'topic_time' => '13',
+    ),
+    array(
+      'class_id' => 11,
+      'topic_id' => 6,
+      'topic_time' => '8',
+    ),
+    array(
+      'class_id' => 12,
+      'topic_id' => 6,
+      'topic_time' => '10',
+    ),
+    array(
+      'class_id' => 13,
+      'topic_id' => 7,
+      'topic_time' => '11',
+    ),
+    array(
+      'class_id' => 14,
+      'topic_id' => 8,
+      'topic_time' => '14',
+    ),
+    array(
+      'class_id' => 15,
+      'topic_id' => 9,
+      'topic_time' => '8',
+    ),
+    array(
+      'class_id' => 16,
+      'topic_id' => 9,
+      'topic_time' => '17',
+    ),
+    array(
+      'class_id' => 17,
+      'topic_id' => 10,
+      'topic_time' => '8.5',
+    ),
+    array(
+      'class_id' => 18,
+      'topic_id' => 10,
+      'topic_time' => '11.75',
+    ),
+    array(
+      'class_id' => 19,
+      'topic_id' => 11,
+      'topic_time' => '8',
+    ),
+    array(
+      'class_id' => 20,
+      'topic_id' => 11,
+      'topic_time' => '9',
+    ),
+    array(
+      'class_id' => 21,
+      'topic_id' => 11,
+      'topic_time' => '10',
+    ),
+    array(
+      'class_id' => 22,
+      'topic_id' => 11,
+      'topic_time' => '11',
+    ),
+    array(
+      'class_id' => 23,
+      'topic_id' => 11,
+      'topic_time' => '13',
+    ),
+    array(
+      'class_id' => 24,
+      'topic_id' => 12,
+      'topic_time' => '8',
+    ),
+    array(
+      'class_id' => 25,
+      'topic_id' => 12,
+      'topic_time' => '11',
+    ),
+  );
+
+  $query_add_times = db_insert('schedule')->fields(array('class_id', 'topic_id', 'topic_time'));
+  foreach ($schedule_values as $item) {
+    $query_add_times->values($item);
+  }
+  $query_add_times->execute();
+}

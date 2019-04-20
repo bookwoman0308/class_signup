@@ -1,0 +1,4 @@
+name = Class Signup
+description = Custom module to retrieve user input and display class schedule information.
+core = 7.x
+package = custom
